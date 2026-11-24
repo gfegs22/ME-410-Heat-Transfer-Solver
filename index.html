@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forced Convection Heat Transfer Calculator (Cylinder & Sphere)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- KaTeX CSS & JS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .input-field {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      transition: all 0.2s ease;
+    }
+    .input-field:focus {
+      border-color: #38bdf8;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+    }
+    input[type=range] {
+      accent-color: #38bdf8;
+    }
+    /* Custom Scrollbar for property table modal */
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="min-h-screen py-6 px-4 md:px-8">
+  <div class="max-w-7xl mx-auto space-y-6">
+    
+    <!-- HEADER -->
+    <header class="glass-card rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="p-2.5 bg-blue-500/20 text-blue-400 rounded-xl">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+          </span>
+          <div>
+            <h1 class="text-2xl font-bold tracking-tight text-white">Forced Convection Heat Transfer Calculator</h1>
+            <p class="text-sm text-slate-400">External flow of air at 1 ATM over Cylinders & Spheres &bull; Table Property Interpolation</p>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 bg-slate-900/80 p-1.5 rounded-xl border border-slate-700">
+        <button id="shapeCylBtn" onclick="setShape('cylinder')" class="px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 bg-blue-600 text-white shadow-lg shadow-blue-500/30">
+          Cylinder (Cross-Flow)
+        </button>
+        <button id="shapeSphBtn" onclick="setShape('sphere')" class="px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-400 hover:text-white">
+          Sphere
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN GRID -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- INPUT CONTROLS (LG: 5 COLUMNS) -->
+      <div class="lg:col-span-5 space-y-6">
+        <div class="glass-card rounded-2xl p-6 space-y-5">
+          <div class="flex justify-between items-center pb-3 border-b border-slate-700/60">
+            <h2 class="text-lg font-semibold text-slate-100 flex items-center gap-2">
+              <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+              </svg>
+              Input Parameters
+            </h2>
+            <div class="flex gap-2 text-xs">
+              <button onclick="applyPreset('standard')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition">Preset 1 (20°C)</button>
+              <button onclick="applyPreset('highVel')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition">Preset 2 (150°C)</button>
+            </div>
+          </div>
+
+          <!-- Ambient Temp Tinf -->
+          <div>
+            <div class="flex justify-between text-sm mb-1.5">
+              <label class="font-medium text-slate-300">Ambient Temperature (<span id="tinfLabel">T<sub>&infty;</sub></span>)</label>
+              <span class="text-blue-400 font-mono font-semibold" id="val_Tinf_display">20 °C</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <input type="range" id="slider_Tinf" min="-150" max="1000" step="1" value="20" class="w-full" oninput="syncInput('Tinf', this.value)">
+              <div class="relative w-28">
+                <input type="number" id="num_Tinf" value="20" min="-150" max="2000" class="input-field w-full px-3 py-1.5 rounded-lg text-sm font-mono text-right" oninput="syncInput('Tinf', this.value)">
+                <span class="absolute right-2 top-2 text-xs text-slate-400">°C</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Surface Temp Tsurface -->
+          <div>
+            <div class="flex justify-between text-sm mb-1.5">
+              <label class="font-medium text-slate-300">Surface Temperature (<span id="tsurfLabel">T<sub>s</sub></span>)</label>
+              <span class="text-blue-400 font-mono font-semibold" id="val_Tsurface_display">100 °C</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <input type="range" id="slider_Tsurface" min="-150" max="2000" step="1" value="100" class="w-full" oninput="syncInput('Tsurface', this.value)">
+              <div class="relative w-28">
+                <input type="number" id="num_Tsurface" value="100" min="-150" max="2000" class="input-field w-full px-3 py-1.5 rounded-lg text-sm font-mono text-right" oninput="syncInput('Tsurface', this.value)">
+                <span class="absolute right-2 top-2 text-xs text-slate-400">°C</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Air Velocity V -->
+          <div>
+            <div class="flex justify-between text-sm mb-1.5">
+              <label class="font-medium text-slate-300">Air Velocity (V)</label>
+              <span class="text-blue-400 font-mono font-semibold" id="val_V_display">10.0 m/s</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <input type="range" id="slider_V" min="0.1" max="100" step="0.1" value="10" class="w-full" oninput="syncInput('V', this.value)">
+              <div class="relative w-28">
+                <input type="number" id="num_V" value="10" min="0.01" step="0.1" class="input-field w-full px-3 py-1.5 rounded-lg text-sm font-mono text-right" oninput="syncInput('V', this.value)">
+                <span class="absolute right-2 top-2 text-xs text-slate-400">m/s</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Diameter D -->
+          <div>
+            <div class="flex justify-between text-sm mb-1.5">
+              <label class="font-medium text-slate-300">Outer Diameter (D)</label>
+              <span class="text-blue-400 font-mono font-semibold" id="val_D_display">0.050 m (50 mm)</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <input type="range" id="slider_D" min="0.001" max="0.5" step="0.001" value="0.05" class="w-full" oninput="syncInput('D', this.value)">
+              <div class="relative w-28">
+                <input type="number" id="num_D" value="0.05" min="0.0005" step="0.001" class="input-field w-full px-3 py-1.5 rounded-lg text-sm font-mono text-right" oninput="syncInput('D', this.value)">
+                <span class="absolute right-2 top-2 text-xs text-slate-400">m</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cylinder Length L (Cylinder mode only) -->
+          <div id="cylinderLengthContainer">
+            <div class="flex justify-between text-sm mb-1.5">
+              <label class="font-medium text-slate-300">Cylinder Length (L)</label>
+              <span class="text-blue-400 font-mono font-semibold" id="val_L_display">1.00 m</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <input type="range" id="slider_L" min="0.05" max="5.0" step="0.05" value="1.0" class="w-full" oninput="syncInput('L', this.value)">
+              <div class="relative w-28">
+                <input type="number" id="num_L" value="1.0" min="0.01" step="0.05" class="input-field w-full px-3 py-1.5 rounded-lg text-sm font-mono text-right" oninput="syncInput('L', this.value)">
+                <span class="absolute right-2 top-2 text-xs text-slate-400">m</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- DIAGRAM & SUMMARY QUICK CARD -->
+        <div class="glass-card rounded-2xl p-6 space-y-4">
+          <h3 class="text-md font-semibold text-slate-200">Physical Setup Diagram</h3>
+          <div class="bg-slate-900/90 rounded-xl p-4 flex justify-center items-center h-48 border border-slate-800 relative overflow-hidden">
+            <svg id="setupSvg" class="w-full h-full" viewBox="0 0 350 160">
+              <!-- Rendered via JS -->
+            </svg>
+          </div>
+          <div class="text-xs text-slate-400 space-y-1 bg-slate-900/40 p-3 rounded-lg border border-slate-800">
+            <p id="evalTempRuleText" class="text-blue-300 font-medium"></p>
+            <p id="correlationRuleText" class="text-slate-400"></p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RESULTS & BREAKDOWN (LG: 7 COLUMNS) -->
+      <div class="lg:col-span-7 space-y-6">
+        
+        <!-- CORRELATION WARNING BANNER -->
+        <div id="warningBanner" class="hidden glass-card rounded-2xl p-4 border-l-4 border-l-amber-500 bg-amber-950/40 space-y-2 transition-all">
+          <div class="flex items-center gap-2 text-amber-400 font-semibold text-sm">
+            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <span>Correlation Applicability Warning</span>
+          </div>
+          <ul id="warningList" class="text-xs text-amber-200/90 list-disc list-inside space-y-1 font-mono"></ul>
+        </div>
+
+        <!-- PRIMARY RESULTS GRID -->
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          
+          <!-- Heat Transfer Q -->
+          <div class="glass-card rounded-2xl p-4 border-l-4 border-l-blue-500 flex flex-col justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Heat Rate (Q)</span>
+            <div class="my-2">
+              <div id="res_Q_W" class="text-2xl md:text-3xl font-extrabold text-white font-mono">0.0 W</div>
+              <div id="res_Q_kW" class="text-xs text-blue-400 font-mono mt-0.5">0.000 kW</div>
+            </div>
+            <span class="text-[11px] text-slate-400">Total convective heat loss</span>
+          </div>
+
+          <!-- Heat Transfer Coefficient h -->
+          <div class="glass-card rounded-2xl p-4 border-l-4 border-l-emerald-500 flex flex-col justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Coefficient (h)</span>
+            <div class="my-2">
+              <div id="res_h" class="text-2xl md:text-3xl font-extrabold text-white font-mono">0.0</div>
+              <div class="text-xs text-emerald-400 font-mono mt-0.5">W/(m²·K)</div>
+            </div>
+            <span class="text-[11px] text-slate-400">Convective heat coeff.</span>
+          </div>
+
+          <!-- Nusselt Number Nu -->
+          <div class="glass-card rounded-2xl p-4 border-l-4 border-l-purple-500 flex flex-col justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Nusselt (Nu)</span>
+            <div class="my-2">
+              <div id="res_Nu" class="text-2xl md:text-3xl font-extrabold text-white font-mono">0.0</div>
+              <div class="text-xs text-purple-400 font-mono mt-0.5">Dimensionless</div>
+            </div>
+            <span id="res_Nu_name" class="text-[11px] text-slate-400">Nu<sub>cyl</sub> or Nu<sub>sph</sub></span>
+          </div>
+
+          <!-- Reynolds Number Re -->
+          <div class="glass-card rounded-2xl p-4 border-l-4 border-l-amber-500 flex flex-col justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Reynolds (Re)</span>
+            <div class="my-2">
+              <div id="res_Re" class="text-xl md:text-2xl font-bold text-white font-mono">0.0</div>
+              <div id="res_Re_regime" class="text-xs text-amber-400 font-mono mt-0.5">Subcritical</div>
+            </div>
+            <span class="text-[11px] text-slate-400">Re<sub>D</sub> = V·D / &nu;</span>
+          </div>
+
+          <!-- Prandtl Number Pr -->
+          <div class="glass-card rounded-2xl p-4 border-l-4 border-l-cyan-500 flex flex-col justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Prandtl (Pr)</span>
+            <div class="my-2">
+              <div id="res_Pr" class="text-xl md:text-2xl font-bold text-white font-mono">0.707</div>
+              <div class="text-xs text-cyan-400 font-mono mt-0.5">Air at evaluation temp</div>
+            </div>
+            <span class="text-[11px] text-slate-400">From Table Interpolation</span>
+          </div>
+
+          <!-- Heat Flux / Per Unit Length -->
+          <div class="glass-card rounded-2xl p-4 border-l-4 border-l-rose-500 flex flex-col justify-between">
+            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider" id="fluxTitle">Heat Flux (q)</span>
+            <div class="my-2">
+              <div id="res_q" class="text-xl md:text-2xl font-bold text-white font-mono">0.0</div>
+              <div id="res_q_unit" class="text-xs text-rose-400 font-mono mt-0.5">W/m²</div>
+            </div>
+            <span id="res_q_sub" class="text-[11px] text-slate-400">q = h · &Delta;T</span>
+          </div>
+
+        </div>
+
+        <!-- FLUID PROPERTIES TABLE CARD -->
+        <div class="glass-card rounded-2xl p-6 space-y-4">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <h3 class="text-md font-semibold text-slate-200 flex items-center gap-2">
+              <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h55.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              Air Fluid Properties (1 ATM Table Interpolation)
+            </h3>
+            <button onclick="toggleAirTableModal()" class="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M9 4v16m6-16v16"/>
+              </svg>
+              View Reference Table Data
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between bg-slate-900/60 px-4 py-2 rounded-xl border border-slate-800 text-xs">
+            <span id="evalTempBadge" class="font-mono text-blue-300 font-medium">Evaluated at T<sub>f</sub> = 60.0 °C</span>
+            <span id="interpStatusBadge" class="font-mono text-amber-300 text-[11px]">Linear Interpolation</span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm text-slate-300 border-collapse">
+              <thead>
+                <tr class="border-b border-slate-700/80 text-xs text-slate-400 uppercase bg-slate-900/40">
+                  <th class="py-2.5 px-3">Property</th>
+                  <th class="py-2.5 px-3">Symbol</th>
+                  <th class="py-2.5 px-3 font-mono">Value</th>
+                  <th class="py-2.5 px-3">Unit</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 font-mono text-xs md:text-sm">
+                <tr>
+                  <td class="py-2 px-3 font-sans font-medium text-slate-200">Evaluation Temperature</td>
+                  <td class="py-2 px-3 text-blue-400">T<sub>eval</sub></td>
+                  <td class="py-2 px-3 text-white" id="prop_Teval">333.15</td>
+                  <td class="py-2 px-3 text-slate-400">K</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-sans font-medium text-slate-200">Fluid Density</td>
+                  <td class="py-2 px-3 text-blue-400">&rho;</td>
+                  <td class="py-2 px-3 text-white" id="prop_rho">1.059</td>
+                  <td class="py-2 px-3 text-slate-400">kg/m³</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-sans font-medium text-slate-200">Dynamic Viscosity</td>
+                  <td class="py-2 px-3 text-blue-400">&mu;<sub>&infty;</sub> / &mu;<sub>f</sub></td>
+                  <td class="py-2 px-3 text-white" id="prop_mu">2.008 e-5</td>
+                  <td class="py-2 px-3 text-slate-400">kg/m·s (Pa·s)</td>
+                </tr>
+                <tr id="row_mu_s">
+                  <td class="py-2 px-3 font-sans font-medium text-slate-200">Surface Viscosity</td>
+                  <td class="py-2 px-3 text-purple-400">&mu;<sub>s</sub></td>
+                  <td class="py-2 px-3 text-white" id="prop_mus">2.181 e-5</td>
+                  <td class="py-2 px-3 text-slate-400">kg/m·s (Pa·s)</td>
+                </tr>
+                <tr id="row_vis_ratio">
+                  <td class="py-2 px-3 font-sans font-medium text-slate-200">Viscosity Ratio</td>
+                  <td class="py-2 px-3 text-purple-400">&mu;<sub>&infty;</sub> / &mu;<sub>s</sub></td>
+                  <td class="py-2 px-3 text-white" id="prop_vis_ratio">0.920</td>
+                  <td class="py-2 px-3 text-slate-400">Dimensionless</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-sans font-medium text-slate-200">Kinematic Viscosity</td>
+                  <td class="py-2 px-3 text-blue-400">&nu;</td>
+                  <td class="py-2 px-3 text-white" id="prop_nu">1.896 e-5</td>
+                  <td class="py-2 px-3 text-slate-400">m²/s</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-sans font-medium text-slate-200">Thermal Conductivity</td>
+                  <td class="py-2 px-3 text-blue-400">k</td>
+                  <td class="py-2 px-3 text-white" id="prop_k">0.0289</td>
+                  <td class="py-2 px-3 text-slate-400">W/(m·K)</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-sans font-medium text-slate-200">Specific Heat Capacity</td>
+                  <td class="py-2 px-3 text-blue-400">c<sub>p</sub></td>
+                  <td class="py-2 px-3 text-white" id="prop_cp">1007.4</td>
+                  <td class="py-2 px-3 text-slate-400">J/(kg·K)</td>
+                </tr>
+                <tr>
+                  <td class="py-2 px-3 font-sans font-medium text-slate-200">Thermal Diffusivity</td>
+                  <td class="py-2 px-3 text-blue-400">&alpha;</td>
+                  <td class="py-2 px-3 text-white" id="prop_alpha">2.632 e-5</td>
+                  <td class="py-2 px-3 text-slate-400">m²/s</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- MATHEMATICAL STEP BREAKDOWN -->
+        <div class="glass-card rounded-2xl p-6 space-y-4">
+          <div class="flex justify-between items-center border-b border-slate-700/60 pb-3">
+            <h3 class="text-md font-semibold text-slate-200 flex items-center gap-2">
+              <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+              </svg>
+              Step-by-Step Calculation Breakdown
+            </h3>
+            <button onclick="copyReport()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+              </svg>
+              Copy Calculation Report
+            </button>
+          </div>
+
+          <div class="space-y-4 text-sm text-slate-300">
+            <!-- Step 1 -->
+            <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+              <div class="font-semibold text-blue-400 mb-1 text-xs uppercase tracking-wider">Step 1: Evaluation Temperature & Interpolated Properties</div>
+              <div id="math_step1" class="font-mono text-xs overflow-x-auto py-1"></div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+              <div class="font-semibold text-blue-400 mb-1 text-xs uppercase tracking-wider">Step 2: Reynolds & Prandtl Numbers</div>
+              <div id="math_step2" class="font-mono text-xs overflow-x-auto py-1"></div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+              <div class="font-semibold text-blue-400 mb-1 text-xs uppercase tracking-wider">Step 3: Nusselt Number Correlation</div>
+              <div id="math_step3" class="font-mono text-xs overflow-x-auto py-1"></div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+              <div class="font-semibold text-blue-400 mb-1 text-xs uppercase tracking-wider">Step 4: Convective Heat Transfer Coefficient (h) & Total Heat Rate (Q)</div>
+              <div id="math_step4" class="font-mono text-xs overflow-x-auto py-1"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PARAMETRIC CHART CARD -->
+        <div class="glass-card rounded-2xl p-6 space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="text-md font-semibold text-slate-200 flex items-center gap-2">
+              <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h16M4 4h16"/>
+              </svg>
+              Parametric Analysis: Heat Transfer vs. Air Velocity
+            </h3>
+            <span class="text-xs text-slate-400">Comparing Cylinder vs Sphere</span>
+          </div>
+
+          <div class="h-64 w-full">
+            <canvas id="paramChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- AIR PROPERTIES REFERENCE TABLE MODAL -->
+    <div id="airTableModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+      <div class="glass-card bg-slate-900 border border-slate-700 rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <div class="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-900/90">
+          <div>
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+              <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18M9 4v16m6-16v16"/>
+              </svg>
+              Properties of Air at 1 atm Pressure Table
+            </h3>
+            <p class="text-xs text-slate-400">Full thermophysical property dataset used for linear interpolation</p>
+          </div>
+          <button onclick="toggleAirTableModal()" class="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="p-5 overflow-y-auto custom-scroll flex-1">
+          <table class="w-full text-left text-xs font-mono text-slate-300 border-collapse">
+            <thead class="sticky top-0 bg-slate-900 border-b border-slate-700 text-slate-400 uppercase">
+              <tr>
+                <th class="py-2.5 px-3">Temp. T (°C)</th>
+                <th class="py-2.5 px-3">Density &rho; (kg/m³)</th>
+                <th class="py-2.5 px-3">Sp. Heat c<sub>p</sub> (J/kg·K)</th>
+                <th class="py-2.5 px-3">Conductivity k (W/m·K)</th>
+                <th class="py-2.5 px-3">Diffusivity &alpha; (m²/s)</th>
+                <th class="py-2.5 px-3">Viscosity &mu; (kg/m·s)</th>
+                <th class="py-2.5 px-3">Kin. Viscosity &nu; (m²/s)</th>
+                <th class="py-2.5 px-3">Prandtl Pr</th>
+              </tr>
+            </thead>
+            <tbody id="fullAirTableBody" class="divide-y divide-slate-800/80">
+              <!-- Dynamically populated via JS -->
+            </tbody>
+          </table>
+        </div>
+        <div class="p-4 border-t border-slate-700 bg-slate-900/90 text-right text-xs text-slate-400">
+          Click outside or press button to close
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="text-center text-xs text-slate-500 py-4 border-t border-slate-800/80">
+      Forced Convection Heat Transfer Calculator &bull; Built for Engineering & Fluid Dynamics Calculations &bull; Air properties at 1 ATM from Thermophysical Data
+    </footer>
+  </div>
+
+  <script>
+    // EXACT AIR PROPERTY DATA AT 1 ATM (From Provided Reference Tables)
+    const AIR_TABLE = [
+      { T: -150, rho: 2.866,  cp: 983,  k: 0.01171, alpha: 4.158e-6, mu: 8.636e-6, nu: 3.013e-6, Pr: 0.7246 },
+      { T: -100, rho: 2.038,  cp: 966,  k: 0.01582, alpha: 8.036e-6, mu: 1.189e-5, nu: 5.837e-6, Pr: 0.7263 },
+      { T: -50,  rho: 1.582,  cp: 999,  k: 0.01979, alpha: 1.252e-5, mu: 1.474e-5, nu: 9.319e-6, Pr: 0.7440 },
+      { T: -40,  rho: 1.514,  cp: 1002, k: 0.02057, alpha: 1.356e-5, mu: 1.527e-5, nu: 1.008e-5, Pr: 0.7436 },
+      { T: -30,  rho: 1.451,  cp: 1004, k: 0.02134, alpha: 1.465e-5, mu: 1.579e-5, nu: 1.087e-5, Pr: 0.7425 },
+      { T: -20,  rho: 1.394,  cp: 1005, k: 0.02211, alpha: 1.578e-5, mu: 1.630e-5, nu: 1.169e-5, Pr: 0.7408 },
+      { T: -10,  rho: 1.341,  cp: 1006, k: 0.02288, alpha: 1.696e-5, mu: 1.680e-5, nu: 1.252e-5, Pr: 0.7387 },
+      { T: 0,    rho: 1.292,  cp: 1006, k: 0.02364, alpha: 1.818e-5, mu: 1.729e-5, nu: 1.338e-5, Pr: 0.7362 },
+      { T: 5,    rho: 1.269,  cp: 1006, k: 0.02401, alpha: 1.880e-5, mu: 1.754e-5, nu: 1.382e-5, Pr: 0.7350 },
+      { T: 10,   rho: 1.246,  cp: 1006, k: 0.02439, alpha: 1.944e-5, mu: 1.778e-5, nu: 1.426e-5, Pr: 0.7336 },
+      { T: 15,   rho: 1.225,  cp: 1007, k: 0.02476, alpha: 2.009e-5, mu: 1.802e-5, nu: 1.470e-5, Pr: 0.7323 },
+      { T: 20,   rho: 1.204,  cp: 1007, k: 0.02514, alpha: 2.074e-5, mu: 1.825e-5, nu: 1.516e-5, Pr: 0.7309 },
+      { T: 25,   rho: 1.184,  cp: 1007, k: 0.02551, alpha: 2.141e-5, mu: 1.849e-5, nu: 1.562e-5, Pr: 0.7296 },
+      { T: 30,   rho: 1.164,  cp: 1007, k: 0.02588, alpha: 2.208e-5, mu: 1.872e-5, nu: 1.608e-5, Pr: 0.7282 },
+      { T: 35,   rho: 1.145,  cp: 1007, k: 0.02625, alpha: 2.277e-5, mu: 1.895e-5, nu: 1.655e-5, Pr: 0.7268 },
+      { T: 40,   rho: 1.127,  cp: 1007, k: 0.02662, alpha: 2.346e-5, mu: 1.918e-5, nu: 1.702e-5, Pr: 0.7255 },
+      { T: 45,   rho: 1.109,  cp: 1007, k: 0.02699, alpha: 2.416e-5, mu: 1.941e-5, nu: 1.750e-5, Pr: 0.7241 },
+      { T: 50,   rho: 1.092,  cp: 1007, k: 0.02735, alpha: 2.487e-5, mu: 1.963e-5, nu: 1.798e-5, Pr: 0.7228 },
+      { T: 60,   rho: 1.059,  cp: 1007, k: 0.02808, alpha: 2.632e-5, mu: 2.008e-5, nu: 1.896e-5, Pr: 0.7202 },
+      { T: 70,   rho: 1.028,  cp: 1007, k: 0.02881, alpha: 2.780e-5, mu: 2.052e-5, nu: 1.995e-5, Pr: 0.7177 },
+      { T: 80,   rho: 0.9994, cp: 1008, k: 0.02953, alpha: 2.931e-5, mu: 2.096e-5, nu: 2.097e-5, Pr: 0.7154 },
+      { T: 90,   rho: 0.9718, cp: 1008, k: 0.03024, alpha: 3.086e-5, mu: 2.139e-5, nu: 2.201e-5, Pr: 0.7132 },
+      { T: 100,  rho: 0.9458, cp: 1009, k: 0.03095, alpha: 3.243e-5, mu: 2.181e-5, nu: 2.306e-5, Pr: 0.7111 },
+      { T: 120,  rho: 0.8977, cp: 1011, k: 0.03235, alpha: 3.565e-5, mu: 2.264e-5, nu: 2.522e-5, Pr: 0.7073 },
+      { T: 140,  rho: 0.8542, cp: 1013, k: 0.03374, alpha: 3.898e-5, mu: 2.345e-5, nu: 2.745e-5, Pr: 0.7041 },
+      { T: 160,  rho: 0.8148, cp: 1016, k: 0.03511, alpha: 4.241e-5, mu: 2.420e-5, nu: 2.975e-5, Pr: 0.7014 },
+      { T: 180,  rho: 0.7788, cp: 1019, k: 0.03646, alpha: 4.593e-5, mu: 2.504e-5, nu: 3.212e-5, Pr: 0.6992 },
+      { T: 200,  rho: 0.7459, cp: 1023, k: 0.03779, alpha: 4.954e-5, mu: 2.577e-5, nu: 3.455e-5, Pr: 0.6974 },
+      { T: 250,  rho: 0.6746, cp: 1033, k: 0.04104, alpha: 5.890e-5, mu: 2.760e-5, nu: 4.091e-5, Pr: 0.6946 },
+      { T: 300,  rho: 0.6158, cp: 1044, k: 0.04418, alpha: 6.871e-5, mu: 2.934e-5, nu: 4.765e-5, Pr: 0.6935 },
+      { T: 350,  rho: 0.5664, cp: 1056, k: 0.04721, alpha: 7.892e-5, mu: 3.101e-5, nu: 5.475e-5, Pr: 0.6937 },
+      { T: 400,  rho: 0.5243, cp: 1069, k: 0.05015, alpha: 8.951e-5, mu: 3.261e-5, nu: 6.219e-5, Pr: 0.6948 },
+      { T: 450,  rho: 0.4880, cp: 1081, k: 0.05298, alpha: 1.004e-4, mu: 3.415e-5, nu: 6.997e-5, Pr: 0.6965 },
+      { T: 500,  rho: 0.4565, cp: 1093, k: 0.05572, alpha: 1.117e-4, mu: 3.563e-5, nu: 7.806e-5, Pr: 0.6986 },
+      { T: 600,  rho: 0.4042, cp: 1115, k: 0.06093, alpha: 1.352e-4, mu: 3.846e-5, nu: 9.515e-5, Pr: 0.7037 },
+      { T: 700,  rho: 0.3627, cp: 1135, k: 0.06581, alpha: 1.598e-4, mu: 4.111e-5, nu: 1.133e-4, Pr: 0.7092 },
+      { T: 800,  rho: 0.3289, cp: 1153, k: 0.07037, alpha: 1.855e-4, mu: 4.362e-5, nu: 1.326e-4, Pr: 0.7149 },
+      { T: 900,  rho: 0.3008, cp: 1169, k: 0.07465, alpha: 2.122e-4, mu: 4.600e-5, nu: 1.529e-4, Pr: 0.7206 },
+      { T: 1000, rho: 0.2772, cp: 1184, k: 0.07868, alpha: 2.398e-4, mu: 4.826e-5, nu: 1.741e-4, Pr: 0.7260 },
+      { T: 1500, rho: 0.1990, cp: 1234, k: 0.09599, alpha: 3.908e-4, mu: 5.817e-5, nu: 2.922e-4, Pr: 0.7478 },
+      { T: 2000, rho: 0.1553, cp: 1264, k: 0.11113, alpha: 5.664e-4, mu: 6.630e-5, nu: 4.270e-4, Pr: 0.7539 }
+    ];
+
+    // GLOBAL STATE
+    let state = {
+      shape: 'cylinder', // 'cylinder' or 'sphere'
+      Tinf: 20.0,        // °C
+      Tsurface: 100.0,   // °C
+      V: 10.0,           // m/s
+      D: 0.05,           // m
+      L: 1.0             // m (cylinder length)
+    };
+
+    let chartInstance = null;
+
+    // LINEAR INTERPOLATION FOR AIR PROPERTIES FROM TABLE
+    function getAirProperties(T_celsius) {
+      const table = AIR_TABLE;
+      const minT = table[0].T;
+      const maxT = table[table.length - 1].T;
+
+      if (T_celsius <= minT) {
+        const r = table[0];
+        return { T_C: T_celsius, T_K: T_celsius + 273.15, ...r, interpText: `Exact table bound at ${minT} °C`, isExact: true, tLow: minT, tHigh: minT };
+      }
+      if (T_celsius >= maxT) {
+        const r = table[table.length - 1];
+        return { T_C: T_celsius, T_K: T_celsius + 273.15, ...r, interpText: `Exact table bound at ${maxT} °C`, isExact: true, tLow: maxT, tHigh: maxT };
+      }
+
+      // Find interval [T_i, T_i+1]
+      let idx = 0;
+      for (let i = 0; i < table.length - 1; i++) {
+        if (T_celsius >= table[i].T && T_celsius <= table[i + 1].T) {
+          idx = i;
+          break;
+        }
+      }
+
+      const p1 = table[idx];
+      const p2 = table[idx + 1];
+
+      if (p1.T === T_celsius) {
+        return { T_C: T_celsius, T_K: T_celsius + 273.15, ...p1, interpText: `Exact table match at ${p1.T} °C`, isExact: true, tLow: p1.T, tHigh: p1.T };
+      }
+      if (p2.T === T_celsius) {
+        return { T_C: T_celsius, T_K: T_celsius + 273.15, ...p2, interpText: `Exact table match at ${p2.T} °C`, isExact: true, tLow: p2.T, tHigh: p2.T };
+      }
+
+      const fraction = (T_celsius - p1.T) / (p2.T - p1.T);
+      const lerp = (a, b) => a + fraction * (b - a);
+
+      return {
+        T_C: T_celsius,
+        T_K: T_celsius + 273.15,
+        rho: lerp(p1.rho, p2.rho),
+        cp: lerp(p1.cp, p2.cp),
+        k: lerp(p1.k, p2.k),
+        alpha: lerp(p1.alpha, p2.alpha),
+        mu: lerp(p1.mu, p2.mu),
+        nu: lerp(p1.nu, p2.nu),
+        Pr: lerp(p1.Pr, p2.Pr),
+        interpText: `Interpolated between ${p1.T} °C and ${p2.T} °C`,
+        tLow: p1.T,
+        tHigh: p2.T,
+        fraction,
+        isExact: false
+      };
+    }
+
+    // MAIN CALCULATION FUNCTION
+    function calculate() {
+      const { shape, Tinf, Tsurface, V, D, L } = state;
+      const deltaT = Tsurface - Tinf;
+
+      let Teval_C, Teval_name;
+      let propEval, propSurf = null;
+      let Re, Pr, Nu, h, Q, q, Q_prime = null;
+
+      if (shape === 'cylinder') {
+        // CYLINDER (Churchill-Bernstein correlation)
+        // Evaluate all fluid properties at film temperature Tf = (Tinf + Tsurface) / 2
+        Teval_C = (Tinf + Tsurface) / 2.0;
+        Teval_name = "T_f = (T_{\\infty} + T_s) / 2";
+        propEval = getAirProperties(Teval_C);
+
+        Re = (V * D) / propEval.nu;
+        Pr = propEval.Pr;
+
+        // Churchill-Bernstein Equation:
+        // Nu = 0.3 + (0.62 * Re^(1/2) * Pr^(1/3)) / [1 + (0.4/Pr)^(2/3)]^(1/4) * [1 + (Re / 282000)^(5/8)]^(4/5)
+        const term1 = (0.62 * Math.sqrt(Re) * Math.pow(Pr, 1/3)) / Math.pow(1 + Math.pow(0.4 / Pr, 2/3), 0.25);
+        const term2 = Math.pow(1 + Math.pow(Re / 282000, 5/8), 0.8);
+        Nu = 0.3 + (term1 * term2);
+
+        h = (Nu * propEval.k) / D;
+
+        const Area = Math.PI * D * L; // Outer cylinder area
+        Q = h * Area * deltaT;
+        Q_prime = h * (Math.PI * D) * deltaT; // Heat loss per unit length [W/m]
+        q = h * deltaT; // Heat flux [W/m^2]
+
+      } else {
+        // SPHERE (Whitaker correlation)
+        // Evaluate all properties at Tinf EXCEPT surface viscosity mu_s at Tsurface
+        Teval_C = Tinf;
+        Teval_name = "T_{\\infty}";
+        propEval = getAirProperties(Tinf);
+        propSurf = getAirProperties(Tsurface);
+
+        Re = (V * D) / propEval.nu;
+        Pr = propEval.Pr;
+
+        const mu_inf = propEval.mu;
+        const mu_s = propSurf.mu;
+        visRatio = mu_inf / mu_s;
+
+        // Whitaker Equation:
+        // Nu = 2 + [0.4 * Re^(1/2) + 0.06 * Re^(2/3)] * Pr^(0.4) * (mu_inf / mu_s)^(1/4)
+        const reTerm = (0.4 * Math.sqrt(Re)) + (0.06 * Math.pow(Re, 2/3));
+        const visTerm = Math.pow(visRatio, 0.25);
+        Nu = 2.0 + (reTerm * Math.pow(Pr, 0.4) * visTerm);
+
+        h = (Nu * propEval.k) / D;
+
+        const Area = Math.PI * Math.pow(D, 2); // Sphere surface area
+        Q = h * Area * deltaT;
+        q = h * deltaT;
+      }
+
+      return {
+        shape, Tinf, Tsurface, V, D, L, deltaT,
+        Teval_C, Teval_name, propEval, propSurf, visRatio,
+        Re, Pr, Nu, h, Q, q, Q_prime
+      };
+    }
+
+    // UPDATE UI WITH CALCULATED RESULTS
+    function updateUI() {
+      const res = calculate();
+
+      // UI Elements Update
+      document.getElementById('res_Q_W').innerText = res.Q >= 10000 
+        ? res.Q.toExponential(4) + ' W'
+        : res.Q.toFixed(2) + ' W';
+      
+      document.getElementById('res_Q_kW').innerText = (res.Q / 1000).toFixed(4) + ' kW';
+      document.getElementById('res_h').innerText = res.h.toFixed(2);
+      document.getElementById('res_Nu').innerText = res.Nu.toFixed(2);
+      
+      document.getElementById('res_Nu_name').innerText = res.shape === 'cylinder' ? 'Nu (Churchill-Bernstein)' : 'Nu (Whitaker)';
+
+      document.getElementById('res_Re').innerText = res.Re >= 1e5 ? res.Re.toExponential(3) : res.Re.toFixed(0);
+      
+      // Reynolds regime indicator
+      let regime = 'Subcritical Flow';
+      if (res.Re < 1) regime = 'Creeping Flow';
+      else if (res.Re > 200000) regime = 'Transitional / Turbulent';
+      document.getElementById('res_Re_regime').innerText = regime;
+
+      document.getElementById('res_Pr').innerText = res.Pr.toFixed(4);
+
+      if (res.shape === 'cylinder') {
+        document.getElementById('fluxTitle').innerText = 'Heat Rate / Length (Q\')';
+        document.getElementById('res_q').innerText = res.Q_prime.toFixed(2);
+        document.getElementById('res_q_unit').innerText = 'W/m';
+        document.getElementById('res_q_sub').innerText = 'Flux q = ' + res.q.toFixed(1) + ' W/m²';
+      } else {
+        document.getElementById('fluxTitle').innerText = 'Heat Flux (q)';
+        document.getElementById('res_q').innerText = res.q.toFixed(2);
+        document.getElementById('res_q_unit').innerText = 'W/m²';
+        document.getElementById('res_q_sub').innerText = 'q = h · (T_s - T_inf)';
+      }
+
+      // Evaluation Temp Badge & Table
+      document.getElementById('evalTempBadge').innerHTML = res.shape === 'cylinder'
+        ? `Evaluated at T<sub>f</sub> = ${res.Teval_C.toFixed(1)} °C`
+        : `Evaluated at T<sub>&infty;</sub> = ${res.Teval_C.toFixed(1)} °C (Surface &mu;<sub>s</sub> at ${res.Tsurface.toFixed(1)} °C)`;
+
+      document.getElementById('interpStatusBadge').innerText = res.propEval.interpText;
+
+      document.getElementById('prop_Teval').innerText = (res.Teval_C + 273.15).toFixed(2);
+      document.getElementById('prop_rho').innerText = res.propEval.rho.toFixed(4);
+      document.getElementById('prop_mu').innerText = res.propEval.mu.toExponential(4);
+      document.getElementById('prop_nu').innerText = res.propEval.nu.toExponential(4);
+      document.getElementById('prop_k').innerText = res.propEval.k.toFixed(5);
+      document.getElementById('prop_cp').innerText = res.propEval.cp.toFixed(1);
+      document.getElementById('prop_alpha').innerText = res.propEval.alpha.toExponential(4);
+
+      // Surface viscosity & viscosity ratio rows toggle
+      const rowMus = document.getElementById('row_mu_s');
+      const rowVisRatio = document.getElementById('row_vis_ratio');
+      if (res.shape === 'sphere') {
+        rowMus.style.display = 'table-row';
+        rowVisRatio.style.display = 'table-row';
+        document.getElementById('prop_mus').innerText = res.propSurf.mu.toExponential(4);
+        document.getElementById('prop_vis_ratio').innerText = res.visRatio.toFixed(3);
+      } else {
+        rowMus.style.display = 'none';
+        rowVisRatio.style.display = 'none';
+      }
+
+      // Check range applicability warnings
+      const warnings = [];
+
+      // Air velocity zero check
+      if (res.V <= 0) {
+        warnings.push(`Air velocity V = ${res.V} m/s: There is no forced convection when fluid velocity is zero (pure natural convection regime).`);
+      }
+
+      // Temperature range check (-150 °C to 2000 °C)
+      if (res.Tinf < -150 || res.Tinf > 2000) {
+        warnings.push(`Ambient temperature T_inf (${res.Tinf} °C) is outside acceptable range of -150 °C to 2000 °C.`);
+      }
+      if (res.Tsurface < -150 || res.Tsurface > 2000) {
+        warnings.push(`Surface temperature T_s (${res.Tsurface} °C) is outside acceptable range of -150 °C to 2000 °C.`);
+      }
+      if (res.shape === 'cylinder' && (res.Teval_C < -150 || res.Teval_C > 2000)) {
+        warnings.push(`Film temperature T_f (${res.Teval_C.toFixed(1)} °C) is outside acceptable range of -150 °C to 2000 °C.`);
+      }
+
+      if (res.shape === 'sphere') {
+        if (res.Re < 3.5 || res.Re > 80000) {
+          warnings.push(`Reynolds number Re = ${res.Re >= 1e5 ? res.Re.toExponential(3) : res.Re.toFixed(1)} is outside the range 3.5 ≤ Re ≤ 80,000 for the Whitaker sphere correlation.`);
+        }
+        if (res.Pr < 0.7 || res.Pr > 380) {
+          warnings.push(`Prandtl number Pr = ${res.Pr.toFixed(4)} is outside the range 0.7 ≤ Pr ≤ 380 for the Whitaker sphere correlation.`);
+        }
+      } else {
+        if (res.Re * res.Pr <= 0.2) {
+          warnings.push(`Reynolds-Prandtl product Re · Pr = ${(res.Re * res.Pr).toFixed(4)} is not greater than 0.2 (Churchill-Bernstein correlation requirement: Re · Pr > 0.2).`);
+        }
+      }
+
+      const warnBanner = document.getElementById('warningBanner');
+      const warnList = document.getElementById('warningList');
+      if (warnings.length > 0) {
+        warnList.innerHTML = warnings.map(w => `<li>${w}</li>`).join('');
+        warnBanner.classList.remove('hidden');
+      } else {
+        warnBanner.classList.add('hidden');
+      }
+
+      // Rules text under diagram
+      if (res.shape === 'cylinder') {
+        document.getElementById('evalTempRuleText').innerHTML = `<b>Evaluation Temp:</b> Film Temperature T<sub>f</sub> = (T<sub>&infty;</sub> + T<sub>s</sub>)/2 = ${(res.Teval_C).toFixed(1)} °C`;
+        document.getElementById('correlationRuleText').innerText = "Correlation: Churchill-Bernstein (Valid for Re · Pr > 0.2)";
+      } else {
+        document.getElementById('evalTempRuleText').innerHTML = `<b>Evaluation Temp:</b> All properties at T<sub>&infty;</sub> = ${res.Tinf.toFixed(1)} °C except surface viscosity &mu;<sub>s</sub> at T<sub>s</sub> = ${res.Tsurface.toFixed(1)} °C`;
+        document.getElementById('correlationRuleText').innerText = "Correlation: Whitaker (Valid for 3.5 ≤ Re ≤ 80,000 and 0.7 ≤ Pr ≤ 380)";
+      }
+
+      // Update LaTeX steps
+      renderMathSteps(res);
+
+      // Update Diagram SVG
+      updateDiagram(res);
+
+      // Update Chart
+      updateChart();
+    }
+
+    // MATH STEP-BY-STEP RENDERER (KaTeX)
+    function renderMathSteps(res) {
+      // Step 1
+      let step1Tex = "";
+      if (res.shape === 'cylinder') {
+        step1Tex = `T_f = \\frac{T_{\\infty} + T_s}{2} = \\frac{${res.Tinf.toFixed(1)} + ${res.Tsurface.toFixed(1)}}{2} = ${res.Teval_C.toFixed(1)}\\text{ °C } (${(res.Teval_C + 273.15).toFixed(2)}\\text{ K})\\\\`
+                 + `\\text{Table Interpolation: } \\rho_f = ${res.propEval.rho.toFixed(4)}\\text{ kg/m}^3, \\quad \\mu_f = ${res.propEval.mu.toExponential(4)}\\text{ kg/m}\\cdot\\text{s}, \\quad k_f = ${res.propEval.k.toFixed(5)}\\text{ W/(m}\\cdot\\text{K)}`;
+      } else {
+        step1Tex = `T_{\\infty} = ${res.Tinf.toFixed(1)}\\text{ °C } (${(res.Tinf + 273.15).toFixed(2)}\\text{ K}), \\quad T_s = ${res.Tsurface.toFixed(1)}\\text{ °C } (${(res.Tsurface + 273.15).toFixed(2)}\\text{ K})\\\\`
+                 + `\\mu_{\\infty} = ${res.propEval.mu.toExponential(4)}\\text{ kg/m}\\cdot\\text{s}, \\quad \\mu_s = ${res.propSurf.mu.toExponential(4)}\\text{ kg/m}\\cdot\\text{s}, \\quad \\frac{\\mu_{\\infty}}{\\mu_s} = ${res.visRatio.toFixed(3)}`;
+      }
+      katex.render(step1Tex, document.getElementById('math_step1'), { displayMode: true, throwOnError: false });
+
+      // Step 2
+      let step2Tex = `\\text{Re}_D = \\frac{V \\cdot D}{\\nu} = \\frac{${res.V.toFixed(1)} \\times ${res.D.toFixed(4)}}{${res.propEval.nu.toExponential(4)}} = ${res.Re >= 1e5 ? res.Re.toExponential(4) : res.Re.toFixed(2)}\\\\`
+                   + `\\text{Pr} = ${res.Pr.toFixed(4)}`;
+      katex.render(step2Tex, document.getElementById('math_step2'), { displayMode: true, throwOnError: false });
+
+      // Step 3
+      let step3Tex = "";
+      if (res.shape === 'cylinder') {
+        step3Tex = `\\text{Nu}_{\\text{cyl}} = 0.3 + \\frac{0.62 \\cdot \\text{Re}^{1/2} \\cdot \\text{Pr}^{1/3}}{\\left[1 + (0.4/\\text{Pr})^{2/3}\\right]^{1/4}} \\left[1 + \\left(\\frac{\\text{Re}}{282,000}\\right)^{5/8}\\right]^{4/5}\\\\`
+                 + `\\text{Nu}_{\\text{cyl}} = ${res.Nu.toFixed(3)}`;
+      } else {
+        step3Tex = `\\text{Nu}_{\\text{sph}} = 2 + \\left[0.4 \\text{Re}^{1/2} + 0.06 \\text{Re}^{2/3}\\right] \\text{Pr}^{0.4} \\left(\\frac{\\mu_{\\infty}}{\\mu_s}\\right)^{1/4}\\\\`
+                 + `\\text{Nu}_{\\text{sph}} = 2 + \\left[0.4 (${res.Re >= 1e5 ? res.Re.toExponential(2) : res.Re.toFixed(1)})^{1/2} + 0.06 (${res.Re >= 1e5 ? res.Re.toExponential(2) : res.Re.toFixed(1)})^{2/3}\\right] (${res.Pr.toFixed(4)})^{0.4} (${res.visRatio.toFixed(3)})^{1/4} = ${res.Nu.toFixed(3)}`;
+      }
+      katex.render(step3Tex, document.getElementById('math_step3'), { displayMode: true, throwOnError: false });
+
+      // Step 4
+      let step4Tex = `h = \\frac{\\text{Nu} \\cdot k}{D} = \\frac{${res.Nu.toFixed(2)} \\times ${res.propEval.k.toFixed(5)}}{${res.D.toFixed(4)}} = ${res.h.toFixed(2)}\\text{ W/(m}^2\\cdot\\text{K)}\\\\`;
+      if (res.shape === 'cylinder') {
+        step4Tex += `A = \\pi D L = \\pi (${res.D.toFixed(4)}) (${res.L.toFixed(2)}) = ${(Math.PI * res.D * res.L).toFixed(4)}\\text{ m}^2\\\\`
+                 + `Q = h \\cdot A \\cdot (T_s - T_{\\infty}) = ${res.Q.toFixed(2)}\\text{ W}`;
+      } else {
+        step4Tex += `A = \\pi D^2 = \\pi (${res.D.toFixed(4)})^2 = ${(Math.PI * res.D * res.D).toFixed(4)}\\text{ m}^2\\\\`
+                 + `Q = h \\cdot A \\cdot (T_s - T_{\\infty}) = ${res.Q.toFixed(2)}\\text{ W}`;
+      }
+      katex.render(step4Tex, document.getElementById('math_step4'), { displayMode: true, throwOnError: false });
+    }
+
+    // DIAGRAM SVG RENDERING
+    function updateDiagram(res) {
+      const svg = document.getElementById('setupSvg');
+      const isCyl = res.shape === 'cylinder';
+
+      let html = `
+        <!-- Flow Streamlines -->
+        <g stroke="#38bdf8" stroke-width="2" opacity="0.6">
+          <line x1="20" y1="40" x2="110" y2="40" marker-end="url(#arrow)"/>
+          <line x1="20" y1="80" x2="110" y2="80" marker-end="url(#arrow)"/>
+          <line x1="20" y1="120" x2="110" y2="120" marker-end="url(#arrow)"/>
+        </g>
+        <text x="35" y="30" fill="#38bdf8" font-size="12" font-weight="bold">Air Flow V = ${res.V} m/s</text>
+        <text x="35" y="145" fill="#94a3b8" font-size="11">T_inf = ${res.Tinf} °C</text>
+
+        <!-- Arrow Def Marker -->
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#38bdf8"/>
+          </marker>
+        </defs>
+      `;
+
+      if (isCyl) {
+        // Cylinder Geometry representation
+        html += `
+          <!-- Cylinder 3D Projection -->
+          <g transform="translate(190, 80)">
+            <ellipse cx="-40" cy="0" rx="15" ry="35" fill="#1e293b" stroke="#f59e0b" stroke-width="3"/>
+            <rect x="-40" y="-35" width="90" height="70" fill="#334155" stroke="#f59e0b" stroke-width="3" stroke-dasharray="none"/>
+            <path d="M 50 -35 A 15 35 0 0 1 50 35 A 15 35 0 0 1 50 -35" fill="#475569" stroke="#f59e0b" stroke-width="3"/>
+            <!-- Heat radiation lines -->
+            <path d="M 10 -45 L 10 -58 M 30 -45 L 30 -58 M -10 -45 L -10 -58" stroke="#ef4444" stroke-width="2.5" marker-end="url(#arrow)"/>
+            <text x="5" y="-63" fill="#ef4444" font-size="11" font-weight="bold">Q = ${res.Q.toFixed(1)} W</text>
+            <text x="-5" y="5" fill="#ffffff" font-size="12" font-weight="bold">Ts = ${res.Tsurface}°C</text>
+            <!-- Dimension D -->
+            <line x1="-40" y1="45" x2="50" y2="45" stroke="#94a3b8" stroke-dasharray="2 2"/>
+            <text x="0" y="58" fill="#cbd5e1" font-size="10">Length L = ${res.L}m</text>
+          </g>
+        `;
+      } else {
+        // Sphere Geometry representation
+        html += `
+          <!-- Sphere representation -->
+          <g transform="translate(210, 80)">
+            <circle cx="0" cy="0" r="42" fill="url(#gradSphere)" stroke="#ec4899" stroke-width="3"/>
+            <!-- Shading gradient -->
+            <defs>
+              <radialGradient id="gradSphere" cx="35%" cy="35%" r="65%">
+                <stop offset="0%" stop-color="#f43f5e" />
+                <stop offset="60%" stop-color="#881337" />
+                <stop offset="100%" stop-color="#1e293b" />
+              </radialGradient>
+            </defs>
+            <!-- Heat radiation vectors -->
+            <path d="M 0 -48 L 0 -62 M 35 -35 L 47 -47 M 48 0 L 62 0" stroke="#ef4444" stroke-width="2.5"/>
+            <text x="-25" y="-65" fill="#ef4444" font-size="11" font-weight="bold">Q = ${res.Q.toFixed(1)} W</text>
+            <text x="-26" y="4" fill="#ffffff" font-size="12" font-weight="bold">Ts = ${res.Tsurface}°C</text>
+            <text x="-25" y="58" fill="#cbd5e1" font-size="10">Dia D = ${res.D}m</text>
+          </g>
+        `;
+      }
+
+      svg.innerHTML = html;
+    }
+
+    // CHART.JS PARAMETRIC ANALYSIS
+    function initChart() {
+      const ctx = document.getElementById('paramChart').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Cylinder Heat Transfer Q (W)',
+              data: [],
+              borderColor: '#38bdf8',
+              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              borderWidth: 2.5,
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'Sphere Heat Transfer Q (W)',
+              data: [],
+              borderColor: '#ec4899',
+              backgroundColor: 'rgba(236, 72, 153, 0.1)',
+              borderWidth: 2.5,
+              borderDash: [4, 4],
+              tension: 0.3,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: '#cbd5e1', font: { family: 'system-ui', size: 12 } }
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false
+            }
+          },
+          scales: {
+            x: {
+              title: { display: true, text: 'Air Velocity V (m/s)', color: '#94a3b8' },
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#94a3b8' }
+            },
+            y: {
+              title: { display: true, text: 'Heat Rate Q (Watts)', color: '#94a3b8' },
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#94a3b8' }
+            }
+          }
+        }
+      });
+    }
+
+    function updateChart() {
+      if (!chartInstance) return;
+
+      const vValues = [];
+      const qCyl = [];
+      const qSph = [];
+
+      const currentShape = state.shape;
+
+      for (let v = 0.5; v <= 50; v += 2.5) {
+        vValues.push(v.toFixed(1));
+
+        // Temp state calculation for Cylinder
+        state.shape = 'cylinder';
+        state.V = v;
+        const resCyl = calculate();
+        qCyl.push(resCyl.Q);
+
+        // Temp state calculation for Sphere
+        state.shape = 'sphere';
+        const resSph = calculate();
+        qSph.push(resSph.Q);
+      }
+
+      // Restore original state
+      state.shape = currentShape;
+      state.V = parseFloat(document.getElementById('num_V').value);
+
+      chartInstance.data.labels = vValues;
+      chartInstance.data.datasets[0].data = qCyl;
+      chartInstance.data.datasets[1].data = qSph;
+      chartInstance.update();
+    }
+
+    // UI SYNC & CONTROLS
+    function syncInput(param, val) {
+      const numVal = parseFloat(val);
+      if (isNaN(numVal)) return;
+
+      state[param] = numVal;
+      document.getElementById('slider_' + param).value = numVal;
+      document.getElementById('num_' + param).value = numVal;
+
+      // Update text displays
+      if (param === 'Tinf') document.getElementById('val_Tinf_display').innerText = numVal.toFixed(1) + ' °C';
+      if (param === 'Tsurface') document.getElementById('val_Tsurface_display').innerText = numVal.toFixed(1) + ' °C';
+      if (param === 'V') document.getElementById('val_V_display').innerText = numVal.toFixed(1) + ' m/s';
+      if (param === 'D') document.getElementById('val_D_display').innerText = numVal.toFixed(3) + ' m (' + (numVal * 1000).toFixed(0) + ' mm)';
+      if (param === 'L') document.getElementById('val_L_display').innerText = numVal.toFixed(2) + ' m';
+
+      updateUI();
+    }
+
+    function setShape(shape) {
+      state.shape = shape;
+      const cylBtn = document.getElementById('shapeCylBtn');
+      const sphBtn = document.getElementById('shapeSphBtn');
+      const lengthContainer = document.getElementById('cylinderLengthContainer');
+
+      if (shape === 'cylinder') {
+        cylBtn.className = "px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 bg-blue-600 text-white shadow-lg shadow-blue-500/30";
+        sphBtn.className = "px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-400 hover:text-white";
+        lengthContainer.style.display = 'block';
+      } else {
+        sphBtn.className = "px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 bg-blue-600 text-white shadow-lg shadow-blue-500/30";
+        cylBtn.className = "px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-400 hover:text-white";
+        lengthContainer.style.display = 'none';
+      }
+
+      updateUI();
+    }
+
+    function applyPreset(preset) {
+      if (preset === 'standard') {
+        syncInput('Tinf', 20);
+        syncInput('Tsurface', 100);
+        syncInput('V', 10);
+        syncInput('D', 0.05);
+        syncInput('L', 1.0);
+      } else if (preset === 'highVel') {
+        syncInput('Tinf', 25);
+        syncInput('Tsurface', 150);
+        syncInput('V', 35);
+        syncInput('D', 0.02);
+        syncInput('L', 0.5);
+      }
+    }
+
+    function toggleAirTableModal() {
+      const modal = document.getElementById('airTableModal');
+      modal.classList.toggle('hidden');
+    }
+
+    function populateAirTableModal() {
+      const tbody = document.getElementById('fullAirTableBody');
+      let html = '';
+      AIR_TABLE.forEach(row => {
+        html += `
+          <tr class="hover:bg-slate-800/50 transition">
+            <td class="py-2 px-3 text-white font-semibold">${row.T}</td>
+            <td class="py-2 px-3 text-slate-300">${row.rho.toFixed(4)}</td>
+            <td class="py-2 px-3 text-slate-300">${row.cp}</td>
+            <td class="py-2 px-3 text-slate-300">${row.k.toFixed(5)}</td>
+            <td class="py-2 px-3 text-slate-400">${row.alpha.toExponential(3)}</td>
+            <td class="py-2 px-3 text-slate-400">${row.mu.toExponential(3)}</td>
+            <td class="py-2 px-3 text-slate-400">${row.nu.toExponential(3)}</td>
+            <td class="py-2 px-3 text-blue-400 font-semibold">${row.Pr.toFixed(4)}</td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function copyReport() {
+      const res = calculate();
+      const text = `
+=== FORCED CONVECTION HEAT TRANSFER REPORT ===
+Geometry: ${res.shape.toUpperCase()}
+Ambient Temperature (Tinf): ${res.Tinf} °C
+Surface Temperature (Tsurface): ${res.Tsurface} °C
+Air Velocity (V): ${res.V} m/s
+Diameter (D): ${res.D} m
+${res.shape === 'cylinder' ? `Length (L): ${res.L} m\n` : ''}
+--- FLUID EVALUATION (1 ATM Table Interpolation) ---
+Evaluation Temp: ${res.Teval_C.toFixed(1)} °C
+Interpolation Detail: ${res.propEval.interpText}
+Density (rho): ${res.propEval.rho.toFixed(4)} kg/m³
+Dynamic Viscosity (mu): ${res.propEval.mu.toExponential(4)} kg/m·s
+${res.shape === 'sphere' ? `Surface Viscosity (mu_s): ${res.propSurf.mu.toExponential(4)} kg/m·s\nViscosity Ratio (mu_inf/mu_s): ${res.visRatio.toFixed(3)}\n` : ''}Kinematic Viscosity (nu): ${res.propEval.nu.toExponential(4)} m²/s
+Thermal Conductivity (k): ${res.propEval.k.toFixed(5)} W/(m·K)
+Specific Heat (cp): ${res.propEval.cp.toFixed(1)} J/(kg·K)
+Prandtl Number (Pr): ${res.Pr.toFixed(4)}
+
+--- COMPUTED RESULTS ---
+Reynolds Number (Re): ${res.Re.toFixed(2)}
+Nusselt Number (Nu): ${res.Nu.toFixed(2)}
+Heat Transfer Coeff (h): ${res.h.toFixed(2)} W/(m²·K)
+Total Heat Rate (Q): ${res.Q.toFixed(2)} Watts (${(res.Q/1000).toFixed(4)} kW)
+${res.shape === 'cylinder' ? `Heat Rate per unit length (Q'): ${res.Q_prime.toFixed(2)} W/m\n` : ''}Heat Flux (q): ${res.q.toFixed(2)} W/m²
+===============================================
+      `.trim();
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Calculation summary copied to clipboard!");
+      });
+    }
+
+    // INITIALIZATION ON LOAD
+    window.onload = () => {
+      populateAirTableModal();
+      initChart();
+      updateUI();
+    };
+  </script>
+</body>
+</html>
